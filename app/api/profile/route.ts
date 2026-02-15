@@ -1,23 +1,34 @@
-import { sql } from '@vercel/postgres';
+import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
+
+export const runtime = 'edge';
 
 export async function GET() {
   try {
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL not configured' },
+        { status: 500 }
+      );
+    }
+
+    const sql = neon(process.env.DATABASE_URL);
+    
     const result = await sql`
       SELECT * FROM user_profiles 
       ORDER BY updated_at DESC 
       LIMIT 1
     `;
     
-    if (result.rows.length === 0) {
+    if (result.length === 0) {
       return NextResponse.json({ profile: null });
     }
     
-    return NextResponse.json({ profile: result.rows[0] });
+    return NextResponse.json({ profile: result[0] });
   } catch (error) {
     console.error('Error fetching profile:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch profile' },
+      { error: 'Failed to fetch profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -25,6 +36,13 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL not configured' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
     const {
       gpa,
@@ -39,6 +57,8 @@ export async function POST(request: Request) {
       is_athlete,
       is_legacy,
     } = body;
+
+    const sql = neon(process.env.DATABASE_URL);
 
     // Create table if it doesn't exist
     await sql`
@@ -76,12 +96,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      profile: result.rows[0] 
+      profile: result[0] 
     });
   } catch (error) {
     console.error('Error saving profile:', error);
     return NextResponse.json(
-      { error: 'Failed to save profile' },
+      { error: 'Failed to save profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
